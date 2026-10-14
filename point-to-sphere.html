@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>一点扫成球 · 运动演示</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b1020;
+    --panel: #141a2e;
+    --text: #e8eefc;
+    --muted: #9aa6c2;
+    --accent: #6ea8ff;
+    --line: #2a3555;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: radial-gradient(1200px 800px at 20% 0%, #152042, var(--bg));
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 16px 20px 8px;
+  }
+  header h1 {
+    margin: 0 0 6px;
+    font-size: 1.15rem;
+    font-weight: 650;
+  }
+  header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.45;
+    max-width: 820px;
+  }
+  .layout {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 16px;
+    padding: 8px 16px 16px;
+    min-height: 0;
+  }
+  @media (max-width: 840px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .stage {
+    background: linear-gradient(180deg, #10172b, #0a0f1c);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    position: relative;
+    min-height: 560px;
+    display: flex;
+    flex-direction: column;
+  }
+  .stage-views {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 220px minmax(300px, 1fr);
+    min-height: 0;
+  }
+  .pane {
+    position: relative;
+    min-height: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .pane-1d { border-right: 1px solid var(--line); }
+  .pane-3d {
+    grid-column: 1 / -1;
+    border-bottom: none;
+  }
+  @media (max-width: 840px) {
+    .stage-views {
+      grid-template-columns: 1fr;
+      grid-template-rows: 160px 220px minmax(320px, 52vh);
+    }
+    .pane-1d { border-right: none; }
+    .pane-3d { grid-column: auto; }
+  }
+  canvas { width: 100%; height: 100%; display: block; }
+  .pane-3d canvas { cursor: grab; }
+  .badge {
+    position: absolute;
+    left: 12px;
+    top: 12px;
+    z-index: 1;
+    background: rgba(20, 26, 46, 0.75);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--muted);
+    backdrop-filter: blur(6px);
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: calc(100vh - 110px);
+    overflow: auto;
+  }
+  .ctrl label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.85rem;
+    margin-bottom: 6px;
+  }
+  .ctrl label span:last-child {
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    cursor: text;
+  }
+  .editable {
+    border-bottom: 1px dashed transparent;
+  }
+  .editable:hover { border-bottom-color: var(--accent); }
+  .inline-edit {
+    width: 7.5em;
+    background: #1a2340;
+    color: var(--text);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 1px 6px;
+    font: inherit;
+    font-size: 0.85rem;
+    text-align: right;
+  }
+  input[type="range"] { width: 100%; }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .toggle input { accent-color: var(--accent); }
+  input[type="text"], select {
+    width: 100%;
+    background: #1a2340;
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font: inherit;
+    font-size: 0.9rem;
+  }
+  button {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: #1a2340;
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary {
+    background: linear-gradient(180deg, #3d6fd6, #2f57ad);
+    border-color: #4d7fe0;
+  }
+  .hint {
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.5;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+  }
+  .hint code {
+    color: #c7d6ff;
+    font-size: 0.78rem;
+  }
+  .seeds {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+  }
+  .seed-status {
+    min-height: 1.2em;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  dialog {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    width: min(360px, calc(100vw - 32px));
+  }
+  dialog::backdrop {
+    background: rgba(5, 8, 16, 0.72);
+  }
+  dialog h2 {
+    margin: 0 0 12px;
+    font-size: 1rem;
+    font-weight: 650;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+    font-size: 0.85rem;
+  }
+  dialog .row { margin-top: 12px; }
+  dialog .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  dialog .actions button { width: 100%; }
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 8px 10px;
+  }
+  .icon-btn svg {
+    width: 14px;
+    height: 14px;
+    flex: none;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>一个点，如何“看起来像球”</h1>
+    <p>点同时做三种运动：径向往复、绕竖直轴旋转、倾角进动。同一条轨迹投影到 x 轴是线段，投影到 xz 平面是圆盘，完整透视才是球。这是视觉暂留，不是点变成了实体。</p>
+  </header>
+  <div class="layout">
+    <div class="stage">
+      <div class="stage-views">
+        <div class="pane pane-1d">
+          <div class="badge">一维 · 投影到 x 轴</div>
+          <canvas id="cv1"></canvas>
+        </div>
+        <div class="pane pane-2d">
+          <div class="badge">二维 · 投影到 xz 平面</div>
+          <canvas id="cv2"></canvas>
+        </div>
+        <div class="pane pane-3d">
+          <div class="badge" id="badge">三维 · 轨迹点：0</div>
+          <canvas id="cv"></canvas>
+        </div>
+      </div>
+    </div>
+    <aside class="panel">
+      <div class="ctrl">
+        <label><span>总速度倍率</span><span id="vSpeed">1.00×</span></label>
+        <input id="speed" type="range" min="0" max="10000" step="1" value="2065" />
+      </div>
+      <div class="ctrl">
+        <label><span>径向往复 ω<sub>r</sub></span><span id="vR">2.00</span></label>
+        <input id="wr" type="range" min="0.2" max="12" step="0.1" value="2" />
+      </div>
+      <div class="ctrl">
+        <label><span>绕轴旋转 ω<sub>φ</sub></span><span id="vPhi">3.10</span></label>
+        <input id="wphi" type="range" min="0.2" max="12" step="0.1" value="3.1" />
+      </div>
+      <div class="ctrl">
+        <label><span>倾角进动 ω<sub>θ</sub></span><span id="vTheta">1.70</span></label>
+        <input id="wtheta" type="range" min="0.2" max="12" step="0.1" value="1.7" />
+      </div>
+      <div class="ctrl">
+        <label><span>轨迹残留长度</span><span id="vTrail">1200</span></label>
+        <input id="trail" type="range" min="0" max="1000" step="1" value="180" />
+      </div>
+      <div class="ctrl">
+        <label><span>球体半径</span><span id="vRad">1.00</span></label>
+        <input id="radius" type="range" min="0.4" max="1.4" step="0.05" value="1" />
+      </div>
+      <label class="toggle">
+        <input id="showPoint" type="checkbox" checked />
+        <span>显示当前点</span>
+      </label>
+      <div class="row">
+        <button id="pause" class="primary">暂停</button>
+        <button id="clear">清空轨迹</button>
+      </div>
+      <button id="preset">一键：接近填满球</button>
+      <div class="seeds">
+        <div class="row">
+          <button id="openSaveSeed" type="button">保存种子</button>
+          <button id="openLoadSeed" type="button">加载种子</button>
+        </div>
+        <div class="seed-status" id="seedStatus"></div>
+      </div>
+      <div class="hint">
+        位置公式（球坐标思路）：<br/>
+        <code>r = R · |sin(ω_r t)|</code><br/>
+        <code>θ = π/2 + 0.9·sin(ω_θ t)</code><br/>
+        <code>φ = ω_φ t</code><br/>
+        频率尽量不要成简单整数比，扫得更均匀。拖拽三维画面可旋转视角。一维只保留 x，二维保留 x 与 z。双击右侧数值可直接输入。总速度最高 10 万倍，轨迹最多保留 1 亿个点，这两个滑块都按对数分布。点数很多时画面均匀抽样绘制，计数仍是实际保留的点数。
+      </div>
+    </aside>
+  </div>
+  <dialog id="saveDialog">
+    <form>
+      <h2>保存种子</h2>
+      <label class="field">名称
+        <input id="seedName" type="text" maxlength="40" placeholder="给这组参数起个名字" />
+      </label>
+      <label class="toggle">
+        <input id="seedExportToo" type="checkbox" />
+        <span>同时导出</span>
+      </label>
+      <p class="seed-status" id="saveDialogStatus"></p>
+      <div class="row">
+        <button id="saveCancel" type="button">取消</button>
+        <button id="saveConfirm" class="primary" type="button">保存</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="loadDialog">
+    <h2>加载种子</h2>
+    <label class="field">本地历史
+      <select id="seedList"></select>
+    </label>
+    <div class="actions">
+      <button id="seedLoad" class="primary icon-btn" type="button">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v8"/><path d="M5 8 8 11l3-3"/><path d="M3 13.5h10"/></svg>
+        加载
+      </button>
+      <button id="seedDelete" class="icon-btn" type="button">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4.5h9"/><path d="M6.2 4.5V3h3.6v1.5"/><path d="M4.6 4.5l.6 8.2h5.6l.6-8.2"/></svg>
+        删除
+      </button>
+      <button id="seedImportBtn" class="icon-btn" type="button">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2.5h5.2L12.5 6v7.5H4z"/><path d="M9 2.5V6h3.5"/></svg>
+        导入
+      </button>
+      <button id="loadClose" class="icon-btn" type="button">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4 4 12"/></svg>
+        关闭
+      </button>
+    </div>
+    <input id="seedFile" type="file" accept="application/json,.json" hidden />
+    <p class="seed-status" id="loadDialogStatus"></p>
+  </dialog>
+<script>
+(() => {
+  const badge = document.getElementById('badge');
+  const panes = {
+    d1: { canvas: document.getElementById('cv1') },
+    d2: { canvas: document.getElementById('cv2') },
+    d3: { canvas: document.getElementById('cv') },
+  };
+  for (const pane of Object.values(panes)) {
+    pane.ctx = pane.canvas.getContext('2d');
+    pane.W = 0;
+    pane.H = 0;
+  }
+
+  const els = {
+    speed: document.getElementById('speed'),
+    wr: document.getElementById('wr'),
+    wphi: document.getElementById('wphi'),
+    wtheta: document.getElementById('wtheta'),
+    trail: document.getElementById('trail'),
+    radius: document.getElementById('radius'),
+    vSpeed: document.getElementById('vSpeed'),
+    vR: document.getElementById('vR'),
+    vPhi: document.getElementById('vPhi'),
+    vTheta: document.getElementById('vTheta'),
+    vTrail: document.getElementById('vTrail'),
+    vRad: document.getElementById('vRad'),
+    pause: document.getElementById('pause'),
+    clear: document.getElementById('clear'),
+    preset: document.getElementById('preset'),
+    showPoint: document.getElementById('showPoint'),
+    openSaveSeed: document.getElementById('openSaveSeed'),
+    openLoadSeed: document.getElementById('openLoadSeed'),
+    seedStatus: document.getElementById('seedStatus'),
+    saveDialog: document.getElementById('saveDialog'),
+    loadDialog: document.getElementById('loadDialog'),
+    seedName: document.getElementById('seedName'),
+    seedExportToo: document.getElementById('seedExportToo'),
+    saveDialogStatus: document.getElementById('saveDialogStatus'),
+    saveCancel: document.getElementById('saveCancel'),
+    saveConfirm: document.getElementById('saveConfirm'),
+    seedList: document.getElementById('seedList'),
+    seedLoad: document.getElementById('seedLoad'),
+    seedDelete: document.getElementById('seedDelete'),
+    seedImportBtn: document.getElementById('seedImportBtn'),
+    seedFile: document.getElementById('seedFile'),
+    loadDialogStatus: document.getElementById('loadDialogStatus'),
+    loadClose: document.getElementById('loadClose'),
+  };
+
+  const SPEED_MIN = 0.05;
+  const SPEED_MAX = 100000;
+  const SPEED_SLIDER_STEPS = 10000;
+  function sliderToSpeed(slider) {
+    const t = Number(slider) / SPEED_SLIDER_STEPS;
+    const v = SPEED_MIN * Math.pow(SPEED_MAX / SPEED_MIN, t);
+    return Math.min(SPEED_MAX, Math.max(SPEED_MIN, v));
+  }
+  function speedToSlider(speed) {
+    const clamped = Math.min(SPEED_MAX, Math.max(SPEED_MIN, speed));
+    const t = Math.log(clamped / SPEED_MIN) / Math.log(SPEED_MAX / SPEED_MIN);
+    return String(Math.round(t * SPEED_SLIDER_STEPS));
+  }
+  function formatSpeed(v) {
+    if (v >= 10000) {
+      const wan = v / 10000;
+      return (wan >= 10 ? wan.toFixed(0) : wan.toFixed(1)) + '万×';
+    }
+    if (v >= 100) return v.toFixed(0) + '×';
+    if (v >= 10) return v.toFixed(1) + '×';
+    return v.toFixed(2) + '×';
+  }
+
+  const TRAIL_MIN = 100;
+  const TRAIL_MAX = 100000000;
+  const DRAW_CAP = 5000;
+  function sliderToTrail(slider) {
+    const t = Number(slider) / 1000;
+    const v = TRAIL_MIN * Math.pow(TRAIL_MAX / TRAIL_MIN, t);
+    return Math.round(Math.min(TRAIL_MAX, Math.max(TRAIL_MIN, v)));
+  }
+  function trailToSlider(count) {
+    const clamped = Math.min(TRAIL_MAX, Math.max(TRAIL_MIN, count));
+    const t = Math.log(clamped / TRAIL_MIN) / Math.log(TRAIL_MAX / TRAIL_MIN);
+    return String(Math.round(t * 1000));
+  }
+  function formatTrail(n) {
+    n = Math.round(n);
+    if (n >= 100000000) return '1亿';
+    if (n >= 10000) {
+      const wan = n / 10000;
+      const digits = wan >= 100 ? 0 : (wan >= 10 ? 0 : 1);
+      return wan.toFixed(digits) + '万';
+    }
+    return String(n);
+  }
+
+  let capPts = 4096;
+  let coords = new Float32Array(capPts * 3);
+  let write = 0;
+  let count = 0;
+  let allocLimited = false;
+
+  function growTo(points) {
+    if (points <= capPts) return true;
+    try {
+      const next = new Float32Array(points * 3);
+      if (count > 0) {
+        const start = (write - count + capPts) % capPts;
+        if (start + count <= capPts) {
+          next.set(coords.subarray(start * 3, (start + count) * 3));
+        } else {
+          const first = capPts - start;
+          next.set(coords.subarray(start * 3));
+          next.set(coords.subarray(0, (count - first) * 3), first * 3);
+        }
+      }
+      coords = next;
+      capPts = points;
+      write = count;
+      return true;
+    } catch (err) {
+      allocLimited = true;
+      return false;
+    }
+  }
+
+  function shrinkToLimit() {
+    const limit = sliderToTrail(els.trail.value);
+    const nextCap = Math.max(4096, limit);
+    if (capPts <= 4096 || nextCap >= capPts) return;
+    const keep = Math.min(count, limit);
+    try {
+      const next = new Float32Array(nextCap * 3);
+      if (keep > 0) {
+        const start = (write - keep + capPts) % capPts;
+        if (start + keep <= capPts) {
+          next.set(coords.subarray(start * 3, (start + keep) * 3));
+        } else {
+          const first = capPts - start;
+          next.set(coords.subarray(start * 3));
+          next.set(coords.subarray(0, (keep - first) * 3), first * 3);
+        }
+      }
+      coords = next;
+      capPts = nextCap;
+      count = keep;
+      write = keep % nextCap;
+      allocLimited = false;
+    } catch (err) {
+      allocLimited = true;
+    }
+  }
+
+  function pushPoint(p) {
+    const limit = sliderToTrail(els.trail.value);
+    if (count >= capPts && capPts < limit) {
+      growTo(Math.min(limit, capPts * 2));
+    }
+    const o = write * 3;
+    coords[o] = p.x;
+    coords[o + 1] = p.y;
+    coords[o + 2] = p.z;
+    write++;
+    if (write >= capPts) write = 0;
+    if (count < capPts) count++;
+  }
+
+  function clearTrail() {
+    count = 0;
+    write = 0;
+  }
+
+  function shownCount() {
+    return Math.min(count, sliderToTrail(els.trail.value), capPts);
+  }
+
+  let dpr = 1, W = 0, H = 0;
+  let t = 0;
+  let running = true;
+  let rotY = -0.55, rotX = 0.35;
+  let dragging = false, lastX = 0, lastY = 0;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    for (const pane of Object.values(panes)) {
+      const rect = pane.canvas.parentElement.getBoundingClientRect();
+      pane.W = rect.width;
+      pane.H = rect.height;
+      pane.canvas.width = Math.floor(pane.W * dpr);
+      pane.canvas.height = Math.floor(pane.H * dpr);
+      pane.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    W = panes.d3.W;
+    H = panes.d3.H;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const canvas = panes.d3.canvas;
+  canvas.addEventListener('pointerdown', (e) => {
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    rotY += dx * 0.008;
+    rotX += dy * 0.008;
+    rotX = Math.max(-1.2, Math.min(1.2, rotX));
+  });
+  canvas.addEventListener('pointerup', () => dragging = false);
+  canvas.addEventListener('pointercancel', () => dragging = false);
+
+  function syncLabels() {
+    els.vSpeed.textContent = formatSpeed(sliderToSpeed(els.speed.value));
+    els.vR.textContent = Number(els.wr.value).toFixed(2);
+    els.vPhi.textContent = Number(els.wphi.value).toFixed(2);
+    els.vTheta.textContent = Number(els.wtheta.value).toFixed(2);
+    els.vTrail.textContent = formatTrail(sliderToTrail(els.trail.value));
+    els.vRad.textContent = Number(els.radius.value).toFixed(2);
+  }
+  function parseUserNumber(text) {
+    const raw = String(text).trim().replace(/×/g, '').replace(/\s/g, '');
+    if (!raw) return NaN;
+    if (raw.endsWith('万')) return Number(raw.slice(0, -1)) * 10000;
+    if (raw.endsWith('亿')) return Number(raw.slice(0, -1)) * 100000000;
+    return Number(raw);
+  }
+  function editText(n) {
+    if (!Number.isFinite(n)) return '';
+    if (Math.abs(n) >= 100) return String(Math.round(n));
+    return String(Math.round(n * 1000) / 1000);
+  }
+  function bindNumberEdit(span, get, set) {
+    span.classList.add('editable');
+    span.title = '双击修改';
+    span.addEventListener('dblclick', () => {
+      const editor = document.createElement('input');
+      editor.type = 'text';
+      editor.className = 'inline-edit';
+      editor.value = editText(get());
+      editor.setAttribute('aria-label', '修改数值');
+      span.replaceWith(editor);
+      editor.focus();
+      editor.select();
+      let done = false;
+      const finish = (commit) => {
+        if (done) return;
+        done = true;
+        if (commit) set(editor.value);
+        if (editor.isConnected) editor.replaceWith(span);
+        syncLabels();
+      };
+      editor.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          finish(true);
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          finish(false);
+        }
+      });
+      editor.addEventListener('blur', () => finish(true));
+    });
+  }
+  bindNumberEdit(els.vSpeed, () => sliderToSpeed(els.speed.value), (text) => {
+    const n = parseUserNumber(text);
+    if (!Number.isFinite(n)) return;
+    els.speed.value = speedToSlider(n);
+  });
+  bindNumberEdit(els.vR, () => Number(els.wr.value), (text) => {
+    const n = parseUserNumber(text);
+    if (!Number.isFinite(n)) return;
+    els.wr.value = String(Math.min(12, Math.max(0.2, n)));
+  });
+  bindNumberEdit(els.vPhi, () => Number(els.wphi.value), (text) => {
+    const n = parseUserNumber(text);
+    if (!Number.isFinite(n)) return;
+    els.wphi.value = String(Math.min(12, Math.max(0.2, n)));
+  });
+  bindNumberEdit(els.vTheta, () => Number(els.wtheta.value), (text) => {
+    const n = parseUserNumber(text);
+    if (!Number.isFinite(n)) return;
+    els.wtheta.value = String(Math.min(12, Math.max(0.2, n)));
+  });
+  bindNumberEdit(els.vTrail, () => sliderToTrail(els.trail.value), (text) => {
+    const n = parseUserNumber(text);
+    if (!Number.isFinite(n)) return;
+    els.trail.value = trailToSlider(n);
+    shrinkToLimit();
+  });
+  bindNumberEdit(els.vRad, () => Number(els.radius.value), (text) => {
+    const n = parseUserNumber(text);
+    if (!Number.isFinite(n)) return;
+    const clamped = Math.min(1.4, Math.max(0.4, n));
+    const snapped = Math.round((clamped - 0.4) / 0.05) * 0.05 + 0.4;
+    els.radius.value = String(Math.min(1.4, Math.max(0.4, snapped)));
+  });
+  ['speed','wr','wphi','wtheta','trail','radius'].forEach(id => {
+    els[id].addEventListener('input', syncLabels);
+  });
+  els.trail.addEventListener('input', shrinkToLimit);
+  syncLabels();
+
+  els.pause.addEventListener('click', () => {
+    running = !running;
+    els.pause.textContent = running ? '暂停' : '继续';
+  });
+  els.clear.addEventListener('click', clearTrail);
+  els.preset.addEventListener('click', () => {
+    els.speed.value = speedToSlider(2.5);
+    els.wr.value = 5.3;
+    els.wphi.value = 8.7;
+    els.wtheta.value = 3.1;
+    els.trail.value = trailToSlider(3500);
+    els.radius.value = 1;
+    syncLabels();
+    shrinkToLimit();
+    clearTrail();
+  });
+
+  const SEED_KEY = 'point-to-sphere-seeds';
+
+  function seedStatus(text) {
+    els.seedStatus.textContent = text;
+  }
+
+  function downloadSeeds(seeds, filename) {
+    const blob = new Blob([JSON.stringify({ version: 1, seeds }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function storeSeed(name, params) {
+    const seeds = readLibrary().filter(seed => seed.name !== name);
+    const seed = { name, savedAt: new Date().toISOString(), params };
+    seeds.push(seed);
+    seeds.sort((a, b) => a.name.localeCompare(b.name, 'zh'));
+    writeLibrary(seeds);
+    return seed;
+  }
+
+  function readLibrary() {
+    try {
+      const raw = localStorage.getItem(SEED_KEY);
+      if (!raw) return [];
+      const data = JSON.parse(raw);
+      return normalizeSeeds(data);
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function writeLibrary(seeds) {
+    localStorage.setItem(SEED_KEY, JSON.stringify({ version: 1, seeds }));
+  }
+
+  function normalizeSeeds(data) {
+    let list = [];
+    if (Array.isArray(data)) list = data;
+    else if (data && Array.isArray(data.seeds)) list = data.seeds;
+    else if (data && data.params && typeof data.params === 'object') list = [data];
+    else if (data && Number.isFinite(Number(data.speed))) list = [{ name: '导入', params: data }];
+    const out = [];
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue;
+      const params = item.params && typeof item.params === 'object' ? item.params : null;
+      if (!params) continue;
+      const name = String(item.name || '').trim().slice(0, 40) || '未命名';
+      out.push({
+        name,
+        savedAt: typeof item.savedAt === 'string' ? item.savedAt : new Date().toISOString(),
+        params,
+      });
+    }
+    return out;
+  }
+
+  function currentParams() {
+    return {
+      speed: sliderToSpeed(els.speed.value),
+      wr: Number(els.wr.value),
+      wphi: Number(els.wphi.value),
+      wtheta: Number(els.wtheta.value),
+      trail: sliderToTrail(els.trail.value),
+      radius: Number(els.radius.value),
+      showPoint: els.showPoint.checked,
+      rotX,
+      rotY,
+    };
+  }
+
+  function applyParams(p) {
+    const num = (v, min, max) => Math.min(max, Math.max(min, Number(v)));
+    if (Number.isFinite(Number(p.speed))) els.speed.value = speedToSlider(Number(p.speed));
+    if (Number.isFinite(Number(p.wr))) els.wr.value = String(num(p.wr, 0.2, 12));
+    if (Number.isFinite(Number(p.wphi))) els.wphi.value = String(num(p.wphi, 0.2, 12));
+    if (Number.isFinite(Number(p.wtheta))) els.wtheta.value = String(num(p.wtheta, 0.2, 12));
+    if (Number.isFinite(Number(p.trail))) els.trail.value = trailToSlider(Number(p.trail));
+    if (Number.isFinite(Number(p.radius))) els.radius.value = String(num(p.radius, 0.4, 1.4));
+    if (typeof p.showPoint === 'boolean') els.showPoint.checked = p.showPoint;
+    if (Number.isFinite(Number(p.rotX))) rotX = num(p.rotX, -1.2, 1.2);
+    if (Number.isFinite(Number(p.rotY))) rotY = Number(p.rotY);
+    syncLabels();
+    shrinkToLimit();
+    clearTrail();
+  }
+
+  function renderSeedList(selected) {
+    const seeds = readLibrary();
+    els.seedList.replaceChildren();
+    if (!seeds.length) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '还没有种子';
+      els.seedList.appendChild(opt);
+      return;
+    }
+    for (const seed of seeds) {
+      const opt = document.createElement('option');
+      opt.value = seed.name;
+      opt.textContent = seed.name;
+      els.seedList.appendChild(opt);
+    }
+    if (selected && seeds.some(seed => seed.name === selected)) els.seedList.value = selected;
+  }
+
+  els.openSaveSeed.addEventListener('click', () => {
+    els.saveDialogStatus.textContent = '';
+    els.saveDialog.showModal();
+    els.seedName.focus();
+  });
+  els.saveCancel.addEventListener('click', () => els.saveDialog.close());
+  els.saveConfirm.addEventListener('click', () => {
+    const name = els.seedName.value.trim().slice(0, 40);
+    if (!name) {
+      els.saveDialogStatus.textContent = '请先填写种子名称';
+      return;
+    }
+    let seed;
+    try {
+      seed = storeSeed(name, currentParams());
+    } catch (err) {
+      els.saveDialogStatus.textContent = '无法写入本地存储';
+      return;
+    }
+    const exported = els.seedExportToo.checked;
+    if (exported) downloadSeeds([seed], name + '.json');
+    els.saveDialog.close();
+    seedStatus(exported ? '已保存并导出「' + name + '」' : '已保存「' + name + '」');
+  });
+
+  els.openLoadSeed.addEventListener('click', () => {
+    renderSeedList();
+    els.loadDialogStatus.textContent = '';
+    els.loadDialog.showModal();
+  });
+  els.loadClose.addEventListener('click', () => els.loadDialog.close());
+
+  els.seedLoad.addEventListener('click', () => {
+    const name = els.seedList.value;
+    if (!name) {
+      els.loadDialogStatus.textContent = '请先选择种子';
+      return;
+    }
+    const seed = readLibrary().find(item => item.name === name);
+    if (!seed) {
+      els.loadDialogStatus.textContent = '找不到该种子';
+      renderSeedList();
+      return;
+    }
+    applyParams(seed.params);
+    els.loadDialog.close();
+    seedStatus('已加载「' + name + '」');
+  });
+
+  els.seedDelete.addEventListener('click', () => {
+    const name = els.seedList.value;
+    if (!name) {
+      els.loadDialogStatus.textContent = '请先选择种子';
+      return;
+    }
+    const seeds = readLibrary().filter(seed => seed.name !== name);
+    try {
+      writeLibrary(seeds);
+    } catch (err) {
+      els.loadDialogStatus.textContent = '无法写入本地存储';
+      return;
+    }
+    renderSeedList();
+    els.loadDialogStatus.textContent = '已删除「' + name + '」';
+  });
+
+  els.seedImportBtn.addEventListener('click', () => els.seedFile.click());
+  els.seedFile.addEventListener('change', () => {
+    const file = els.seedFile.files && els.seedFile.files[0];
+    els.seedFile.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const incoming = normalizeSeeds(JSON.parse(String(reader.result)));
+        if (!incoming.length) {
+          els.loadDialogStatus.textContent = '文件里没有可用的种子';
+          return;
+        }
+        const map = new Map(readLibrary().map(seed => [seed.name, seed]));
+        for (const seed of incoming) map.set(seed.name, seed);
+        const seeds = [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh'));
+        writeLibrary(seeds);
+        renderSeedList(incoming[incoming.length - 1].name);
+        if (incoming.length === 1) {
+          applyParams(incoming[0].params);
+          els.loadDialog.close();
+          seedStatus('已导入并加载「' + incoming[0].name + '」');
+          return;
+        }
+        els.loadDialogStatus.textContent = '已导入 ' + incoming.length + ' 个种子，请选择后加载';
+      } catch (err) {
+        els.loadDialogStatus.textContent = '无法解析该文件';
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  for (const dialog of [els.saveDialog, els.loadDialog]) {
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+  }
+
+  renderSeedList();
+
+  function pos(time) {
+    const R = Number(els.radius.value);
+    const wr = Number(els.wr.value);
+    const wphi = Number(els.wphi.value);
+    const wtheta = Number(els.wtheta.value);
+    const r = R * Math.abs(Math.sin(wr * time));
+    const theta = Math.PI / 2 + 0.92 * Math.sin(wtheta * time);
+    const phi = wphi * time;
+    const x = r * Math.sin(theta) * Math.cos(phi);
+    const y = r * Math.cos(theta);
+    const z = r * Math.sin(theta) * Math.sin(phi);
+    return { x, y, z };
+  }
+
+  function project(p) {
+    let x = p.x, y = p.y, z = p.z;
+    // rotX
+    let y1 = y * Math.cos(rotX) - z * Math.sin(rotX);
+    let z1 = y * Math.sin(rotX) + z * Math.cos(rotX);
+    y = y1; z = z1;
+    // rotY
+    let x2 = x * Math.cos(rotY) + z * Math.sin(rotY);
+    let z2 = -x * Math.sin(rotY) + z * Math.cos(rotY);
+    x = x2; z = z2;
+    const scale = Math.min(W, H) * 0.32;
+    const depth = 3.2;
+    const f = depth / (depth + z + 1.6);
+    return {
+      X: W / 2 + x * scale * f,
+      Y: H / 2 + y * scale * f,
+      z, f
+    };
+  }
+
+  function drawSphereWire(R) {
+    const ctx = panes.d3.ctx;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(110,168,255,0.18)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 6; i++) {
+      const lat = (i / 5) * Math.PI;
+      ctx.beginPath();
+      for (let j = 0; j <= 64; j++) {
+        const lon = (j / 64) * Math.PI * 2;
+        const p = project({
+          x: R * Math.sin(lat) * Math.cos(lon),
+          y: R * Math.cos(lat),
+          z: R * Math.sin(lat) * Math.sin(lon)
+        });
+        if (j === 0) ctx.moveTo(p.X, p.Y); else ctx.lineTo(p.X, p.Y);
+      }
+      ctx.stroke();
+    }
+    for (let i = 0; i < 8; i++) {
+      const lon = (i / 8) * Math.PI * 2;
+      ctx.beginPath();
+      for (let j = 0; j <= 64; j++) {
+        const lat = (j / 64) * Math.PI;
+        const p = project({
+          x: R * Math.sin(lat) * Math.cos(lon),
+          y: R * Math.cos(lat),
+          z: R * Math.sin(lat) * Math.sin(lon)
+        });
+        if (j === 0) ctx.moveTo(p.X, p.Y); else ctx.lineTo(p.X, p.Y);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function paintTrail(pane, mapPoint) {
+    const ctx = pane.ctx;
+    const n = shownCount();
+    if (!n) return;
+    const stride = Math.max(1, Math.ceil(n / DRAW_CAP));
+    const steps = Math.floor((n - 1) / stride) + 1;
+    const start = (write - n + capPts) % capPts;
+    for (let s = 0; s < steps; s++) {
+      const k = Math.min(n - 1, s * stride);
+      const idx = (start + k) % capPts;
+      const o = idx * 3;
+      const p = mapPoint({ x: coords[o], y: coords[o + 1], z: coords[o + 2] });
+      const a = (s + 1) / steps;
+      const size = 1.2 + 1.6 * a * (p.f || 1);
+      ctx.fillStyle = `rgba(125, 200, 255, ${0.05 + 0.55 * a})`;
+      ctx.beginPath();
+      ctx.arc(p.X, p.Y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (!els.showPoint.checked) return;
+    const last = (write - 1 + capPts) % capPts;
+    const o = last * 3;
+    const cur = mapPoint({ x: coords[o], y: coords[o + 1], z: coords[o + 2] });
+    ctx.beginPath();
+    ctx.fillStyle = '#fff';
+    ctx.arc(cur.X, cur.Y, 4.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(255,220,120,0.9)';
+    ctx.lineWidth = 2;
+    ctx.arc(cur.X, cur.Y, 8, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  function draw1d(R, n) {
+    const pane = panes.d1;
+    const ctx = pane.ctx;
+    const scale = (pane.W * 0.36) / 1.4;
+    ctx.clearRect(0, 0, pane.W, pane.H);
+    const y = pane.H * 0.5;
+    const x0 = pane.W / 2 - R * scale;
+    const x1 = pane.W / 2 + R * scale;
+    ctx.strokeStyle = 'rgba(110,168,255,0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x0, y);
+    ctx.lineTo(x1, y);
+    ctx.stroke();
+    ctx.fillStyle = '#9aa6c2';
+    ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillText('−R', x0 - 8, y + 16);
+    ctx.fillText('+R', x1 - 10, y + 16);
+    ctx.fillText('x', pane.W / 2 - 4, y - 12);
+    paintTrail(pane, (p) => ({ X: pane.W / 2 + p.x * scale, Y: y, f: 1 }));
+  }
+
+  function draw2d(R) {
+    const pane = panes.d2;
+    const ctx = pane.ctx;
+    const scale = Math.min(pane.W, pane.H) * 0.42 / 1.4;
+    const cx = pane.W / 2;
+    const cy = pane.H / 2 + 8;
+    ctx.clearRect(0, 0, pane.W, pane.H);
+    ctx.strokeStyle = 'rgba(110,168,255,0.28)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * scale, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - R * scale, cy);
+    ctx.lineTo(cx + R * scale, cy);
+    ctx.moveTo(cx, cy - R * scale);
+    ctx.lineTo(cx, cy + R * scale);
+    ctx.stroke();
+    ctx.fillStyle = '#9aa6c2';
+    ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillText('x', cx + R * scale + 6, cy + 4);
+    ctx.fillText('z', cx - 4, cy - R * scale - 6);
+    paintTrail(pane, (p) => ({ X: cx + p.x * scale, Y: cy - p.z * scale, f: 1 }));
+  }
+
+  function draw3d(R) {
+    const pane = panes.d3;
+    const ctx = pane.ctx;
+    W = pane.W;
+    H = pane.H;
+    ctx.clearRect(0, 0, pane.W, pane.H);
+    ctx.fillStyle = 'rgba(255,255,255,0.015)';
+    for (let i = 0; i < 40; i++) {
+      ctx.fillRect((i * 97) % pane.W, (i * 53) % pane.H, 2, 2);
+    }
+    drawSphereWire(R);
+    paintTrail(pane, project);
+  }
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    const mul = sliderToSpeed(els.speed.value);
+    if (running) {
+      const maxLen = sliderToTrail(els.trail.value);
+      const steps = Math.max(1, Math.min(maxLen, 2500, Math.ceil(mul * 4)));
+      const h = dt / steps;
+      for (let i = 0; i < steps; i++) {
+        t += h * mul;
+        pushPoint(pos(t));
+      }
+    }
+
+    const R = Number(els.radius.value);
+    const n = shownCount();
+    draw1d(R, n);
+    draw2d(R, n);
+    draw3d(R, n);
+    const kept = formatTrail(n);
+    badge.textContent = allocLimited && sliderToTrail(els.trail.value) > capPts
+      ? `三维 · 轨迹点：${kept}（内存停在 ${formatTrail(capPts)}）`
+      : `三维 · 轨迹点：${kept}`;
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
